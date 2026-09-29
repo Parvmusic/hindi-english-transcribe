@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transcribe · Hindi + English</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f0;
+    --panel: #ffffff;
+    --ink: #16211f;
+    --muted: #5d6b68;
+    --line: #d3dbd8;
+    --accent: #1b5e52;
+    --accent-ink: #ffffff;
+    --wash: #e3ebe8;
+    --err: #a3261f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101716;
+      --panel: #172120;
+      --ink: #e6efec;
+      --muted: #93a39f;
+      --line: #2a3936;
+      --accent: #5cc4ae;
+      --accent-ink: #08201b;
+      --wash: #1f2c2a;
+      --err: #ff8a80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hind", "Noto Sans Devanagari", system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 20px 80px; }
+  h1 { font-size: 28px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+
+  .drop {
+    display: block;
+    border: 2px dashed var(--line);
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+  }
+  .drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); }
+  .drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .drop strong { display: block; font-weight: 600; }
+  .drop span { color: var(--muted); font-size: 15px; }
+
+  .opts { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0; }
+  .opts label { display: flex; flex-direction: column; font-size: 14px; color: var(--muted); gap: 4px; }
+  select {
+    font: inherit; font-size: 16px; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 10px; min-width: 210px;
+  }
+  button {
+    font: inherit; font-size: 16px; font-weight: 500;
+    border-radius: 6px; padding: 9px 18px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .status { min-height: 26px; color: var(--muted); font-size: 15px; margin-top: 6px; }
+  .status.err { color: var(--err); }
+  .bar { height: 4px; background: var(--wash); border-radius: 2px; overflow: hidden; margin: 8px 0 22px; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+
+  .result { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .toolbar .grow { flex: 1; }
+  .toolbar label { font-size: 15px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  #out { padding: 16px 18px; min-height: 120px; }
+  #out p { margin: 0 0 10px; }
+  #out .t { display: none; color: var(--muted); font-size: 13px; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  #out.stamps .t { display: inline; }
+  .empty { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Transcribe</h1>
+  <p class="sub">Upload audio. Get text in Hindi and English, mixed the way it was spoken.</p>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.ogg,.opus,.aac,.flac,.mp4,.webm">
+    <strong id="fname">Choose an audio file or drop it here</strong>
+    <span>mp3, m4a, wav, ogg, mp4, webm and more</span>
+  </label>
+
+  <div class="opts">
+    <label>Language
+      <select id="mode">
+        <option value="mixed">Hindi + English mixed</option>
+        <option value="hindi">Hindi only</option>
+        <option value="english">English only</option>
+        <option value="auto">Auto-detect</option>
+      </select>
+    </label>
+    <label>Hindi words written in
+      <select id="script">
+        <option value="devanagari">देवनागरी (Devanagari)</option>
+        <option value="roman">Roman letters (Hinglish)</option>
+      </select>
+    </label>
+  </div>
+
+  <button class="primary" id="go" disabled>Transcribe</button>
+  <div class="status" id="status" role="status"></div>
+  <div class="bar"><i id="prog"></i></div>
+
+  <section class="result">
+    <div class="toolbar">
+      <label><input type="checkbox" id="stamps"> Show timestamps</label>
+      <span class="grow"></span>
+      <button id="copy" disabled>Copy text</button>
+      <button id="save" disabled>Download .txt</button>
+    </div>
+    <div id="out"><p class="empty">Your transcript will appear here as it is ready.</p></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let segs = [];
+let duration = 0;
+
+const fmt = s => {
+  s = Math.floor(s);
+  const m = Math.floor(s / 60), r = s % 60;
+  return m + ":" + String(r).padStart(2, "0");
+};
+const plain = () => segs.map(s => s.text).join("\n");
+
+function setStatus(text, isErr) {
+  $("status").textContent = text;
+  $("status").className = "status" + (isErr ? " err" : "");
+}
+
+function pick(file) {
+  if (!file) return;
+  $("fname").textContent = file.name;
+  $("go").disabled = false;
+}
+
+$("file").addEventListener("change", e => pick(e.target.files[0]));
+const drop = $("drop");
+["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0];
+  if (f) { $("file").files = e.dataTransfer.files; pick(f); }
+});
+
+$("stamps").addEventListener("change", e => $("out").classList.toggle("stamps", e.target.checked));
+
+function addSegment(s) {
+  segs.push(s);
+  if (segs.length === 1) $("out").innerHTML = "";
+  const p = document.createElement("p");
+  const t = document.createElement("span");
+  t.className = "t";
+  t.textContent = fmt(s.start);
+  p.append(t, document.createTextNode(s.text));
+  $("out").appendChild(p);
+  if (duration) $("prog").style.width = Math.min(100, (s.end / duration) * 100) + "%";
+}
+
+function handle(m) {
+  if (m.type === "info") {
+    duration = m.duration;
+    setStatus("Transcribing " + fmt(duration) + " of audio…");
+  } else if (m.type === "seg") {
+    addSegment(m);
+  } else if (m.type === "error") {
+    setStatus("Could not transcribe: " + m.message, true);
+  } else if (m.type === "done") {
+    $("prog").style.width = "100%";
+    setStatus("Done.");
+  }
+}
+
+$("go").addEventListener("click", async () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append("audio", f);
+  fd.append("mode", $("mode").value);
+  fd.append("script", $("script").value);
+
+  segs = []; duration = 0;
+  $("out").innerHTML = '<p class="empty">Working…</p>';
+  $("prog").style.width = "0";
+  $("go").disabled = true;
+  $("copy").disabled = true;
+  $("save").disabled = true;
+  setStatus("Uploading…");
+
+  try {
+    const res = await fetch("/transcribe", { method: "POST", body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (line) handle(JSON.parse(line));
+      }
+    }
+  } catch (e) {
+    setStatus("Could not reach the server: " + e.message, true);
+  }
+  $("go").disabled = false;
+  const has = segs.length > 0;
+  $("copy").disabled = !has;
+  $("save").disabled = !has;
+  if (!has && $("out").querySelector(".empty")) {
+    $("out").innerHTML = '<p class="empty">No speech found in this file.</p>';
+  }
+});
+
+$("copy").addEventListener("click", async () => {
+  await navigator.clipboard.writeText(plain());
+  setStatus("Copied.");
+});
+
+$("save").addEventListener("click", () => {
+  const name = ($("file").files[0]?.name || "transcript").replace(/\.[^.]+$/, "") + ".txt";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([plain()], { type: "text/plain;charset=utf-8" }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>
